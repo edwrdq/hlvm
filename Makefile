@@ -12,6 +12,10 @@ hi: build src/hi.asm
 	$(AS) $(ASFLAGS) src/hi.asm -o build/hi.o
 	$(LD) build/hi.o -o build/hi
 
+cat: build src/cat.asm
+	$(AS) $(ASFLAGS) src/cat.asm -o build/cat.o
+	$(LD) build/cat.o -o build/cat
+
 clean:
 	rm -rf build
 
