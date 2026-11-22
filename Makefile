@@ -1,6 +1,6 @@
 # tools
 AS = nasm
-ASFLAGS = -f elf64 -g -F dwarf
+ASFLAGS = -f elf64 -g -F dwarf -i src/
 LD = ld
 
 
@@ -15,6 +15,10 @@ hi: build src/hi.asm
 cat: build src/cat.asm
 	$(AS) $(ASFLAGS) src/cat.asm -o build/cat.o
 	$(LD) build/cat.o -o build/cat
+
+lexer: build src/cat.asm
+	$(AS) $(ASFLAGS) src/lexer.asm -o build/lexer.o
+	$(LD) build/lexer.o -o build/lexer
 
 clean:
 	rm -rf build
