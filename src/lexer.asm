@@ -1,5 +1,6 @@
 default rel
 %include "src/tokens.inc"
+%include "src/lib.asm"
 
 section .bss
     statbuf resb 144

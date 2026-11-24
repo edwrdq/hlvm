@@ -44,7 +44,7 @@ die:
 ; out: rax = 1 if equal, 0 if !
 mem_eq: 
     .loop:
-        test 
+        test rdx, rdx
         jz .equal
     
         mov al, [rsi]

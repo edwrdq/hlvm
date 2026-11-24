@@ -20,6 +20,10 @@ lexer: build src/cat.asm
 	$(AS) $(ASFLAGS) src/lexer.asm -o build/lexer.o
 	$(LD) build/lexer.o -o build/lexer
 
+test_lib: build src/test_lib.asm
+	$(AS) $(ASFLAGS) src/test_lib.asm -o build/test_lib.o
+	$(LD) build/test_lib.o -o build/test_lib
+
 clean:
 	rm -rf build
 
