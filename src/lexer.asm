@@ -74,6 +74,7 @@ _start:
     ; lea r14, [rax + r15]
     mov r13, rax
     lea r14, [rax + r15]
+    mov r15, 1
 
     ; close (fd), keep mapping valid 
     mov rax, 3
@@ -98,7 +99,7 @@ _start:
     cmp al, 9
     je .next
     cmp al, 10
-    je .next
+    je .newline
     cmp al, 13
     je .next
 
@@ -147,6 +148,10 @@ _start:
     jne .skip_comment
     jmp .loop
 
+.newline:
+    inc r15 
+    jmp .next
+
 .lparen: 
     mov rsi, tok_lparen
     mov rdx, tok_lparen_len
@@ -170,16 +175,21 @@ _start:
 .string_loop: 
     inc r13 
     cmp r13, r14
-    je .unclosed ; if eof is hit without closing " 
-    cmp byte [r13], '"' 
-    jne .string_loop ; not end yet keep consuming
-    ; r13 is on closing " 
-    mov rcx, r13 ; length = r13 - rbx
-    sub rcx, rbx 
-    mov rsi, tok_string ; print string with func 
+    je .unclosed ; if eof is hit without closing "
+    cmp byte [r13], 10
+    jne .string_check_quote
+    inc r15
+    jmp .string_loop
+.string_check_quote:
+    cmp byte [r13], '"'
+    jne .string_loop
+    ; r13 is on closing "
+    mov rcx, r13
+    sub rcx, rbx
+    mov rsi, tok_string
     mov rdx, tok_string_len
     call print_str
-    jmp .next 
+    jmp .next
 
 .unclosed: 
     mov rsi, err_unclosed
@@ -263,10 +273,16 @@ _start:
 
 .equals:
     ; print tok_equals
+    mov rsi, tok_equals
+    mov rdx, tok_equals_len
+    call print_str
     jmp .loop
 
 .and_tok:
     ; print tok_and
+    mov rsi, tok_and
+    mov rdx, tok_and_len
+    call print_str
     jmp .loop 
 
 .next:
