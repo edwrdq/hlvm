@@ -14,6 +14,12 @@ section .data
     tok_rparen_len equ $ - tok_rparen
     tok_question db "QUESTION", 10
     tok_question_len equ $ - tok_question
+    tok_bang db "BANG" , 10
+    tok_bang_len equ $ - tok_bang
+    tok_string db "STRING", 10
+    tok_string_len equ $ - tok_string
+    err_unclosed db "make up your mind", 10 
+    err_unclosed_len equ $ - err_unclosed 
 
 
 section .text
@@ -96,6 +102,14 @@ _start:
     cmp al, '?'
     je .question 
 
+    ;bang comparison 
+    cmp al, '!'
+    je .bang
+
+    ;double quotes (string)
+    cmp al, '"'
+    je .string
+
     jmp .next 
 
 .lparen: 
@@ -115,6 +129,44 @@ _start:
     mov rdx, tok_question_len
     call print_str
     jmp .next 
+
+.string:
+    lea rbx, [r13 + 1]
+.string_loop: 
+    inc r13 
+    cmp r13, r14
+    je .unclosed ; if eof is hit without closing " 
+    cmp byte [r13], '"' 
+    jne .string_loop ; not end yet keep consuming
+    ; r13 is on closing " 
+    mov rcx, r13 ; length = r13 - rbx
+    sub rcx, rbx 
+    mov rsi, tok_string ; print string with func 
+    mov rdx, tok_string_len
+    call print_str
+    jmp .next 
+
+.unclosed: 
+    mov rsi, err_unclosed
+    mov rdx, err_unclosed_len 
+    call die 
+
+.bang: 
+    mov rbx, r13 ; first ! location 
+.bang_loop: 
+    inc r13 
+    cmp r13, r14 
+    je .bang_done ; out of file 
+    cmp byte [r13], '!'
+    je .bang_loop ; theres another ! so we keep going 
+.bang_done: 
+    ; define count as being r13 - rbx (amount of !) 
+    mov rcx, r13 ; rcx is location where ! ended
+    sub rcx, rbx ; rcx = end - start = number of ! there = our count !!
+    mov rsi, tok_bang
+    mov rdx, tok_bang_len
+    call print_str 
+    jmp .loop 
 
 .next:
     inc r13
