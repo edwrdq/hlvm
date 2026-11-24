@@ -20,6 +20,14 @@ section .data
     tok_string_len equ $ - tok_string
     err_unclosed db "make up your mind", 10 
     err_unclosed_len equ $ - err_unclosed 
+    tok_ident db "IDENT", 10
+    tok_ident_len equ $ - tok_ident
+    tok_equals db "EQUALS", 10
+    tok_equals_len equ $ - tok_equals
+    tok_and db "AND", 10 
+    tok_and_len equ $ - tok_and 
+    kw_and db "*AND*"
+    kw_comment db "**excuse me " ;trailing space btw
 
 
 section .text
@@ -110,7 +118,34 @@ _start:
     cmp al, '"'
     je .string
 
-    jmp .next 
+    ;comments
+    cmp al, '*'
+    je .maybe_comment
+
+    jmp .ident 
+
+.maybe_comment: 
+    ;enough bytes for a phrase ? 
+    mov rcx, r14 
+    sub rcx, r13 ; bytes remaining
+    cmp rcx, 12
+    jb .ident ;too short, identifier 
+
+    ;match **excuse me ?
+    mov rsi, r13 
+    mov rdi, kw_comment
+    mov rdx, 12 
+    call mem_eq
+    test rax, rax
+    jz .ident ;no match, identifier
+
+.skip_comment: 
+    inc r13
+    cmp r13, r14 
+    je .eof
+    cmp byte [r13], 10
+    jne .skip_comment
+    jmp .loop
 
 .lparen: 
     mov rsi, tok_lparen
@@ -166,6 +201,72 @@ _start:
     mov rsi, tok_bang
     mov rdx, tok_bang_len
     call print_str 
+    jmp .loop 
+
+.ident: 
+    mov rbx, r13  ; we r starting 
+.ident_loop: 
+    inc r13 
+    cmp r13, r14 
+    je .ident_done ;eof
+    mov al, [r13]
+    ; stop on whitespace 
+    cmp al, ' '
+    je .ident_done
+    cmp al, 9
+    je .ident_done
+    cmp al, 10 
+    je .ident_done
+    cmp al, 13 
+    je .ident_done
+    ; stop on reserved
+    cmp al, '!'
+    je .ident_done
+    cmp al, '?'
+    je .ident_done
+    cmp al, '('
+    je .ident_done 
+    cmp al, ')'
+    je .ident_done
+    cmp al, '"'
+    je .ident_done 
+    ; non ascii -> crash
+    cmp al, 127 
+    ja .crash  
+    jmp .ident_loop 
+.ident_done:
+    mov rcx, r13 ; length = r13 - rbx
+    sub rcx, rbx
+
+    ; is it "="?
+    cmp rcx, 1
+    jne .check_and
+    cmp byte [rbx], '='
+    je .equals
+
+.check_and:
+    ; is it "*AND*"
+    cmp rcx, 5
+    jne .plain_ident
+    mov rsi, rbx      ; start of identifier
+    mov rdi, kw_and      ; keyword to compare against
+    mov rdx, 5      ; how many bytes
+    call mem_eq
+    test rax, rax
+    jnz .and_tok      
+
+.plain_ident:
+    mov rsi, tok_ident
+    mov rdx, tok_ident_len
+    call print_str
+    jmp .loop
+
+.equals:
+    ; print tok_equals
+    jmp .loop
+
+.and_tok:
+    ; print tok_and
     jmp .loop 
 
 .next:
