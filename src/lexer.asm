@@ -8,6 +8,13 @@ section .bss
 section .data
     eof_msg db "EOF", 10
     eof_len equ $ - eof_msg
+    tok_lparen db "LPAREN", 10
+    tok_lparen_len equ $ - tok_lparen 
+    tok_rparen db "RPAREN", 10
+    tok_rparen_len equ $ - tok_rparen
+    tok_question db "QUESTION", 10
+    tok_question_len equ $ - tok_question
+
 
 section .text
     global _start 
@@ -65,13 +72,53 @@ _start:
     cmp r13, r14
     je .eof
 
+    ;update: lexing logic now here
+    ; non ascii -> we crash dis bih 
+    mov al, [r13]
+    cmp al, 127
+    ja .crash 
 
-    ; lexing logic goes hereohh
+    ; whitespace -> skip 
+    cmp al, ' '
+    je .next 
+    cmp al, 9
+    je .next
+    cmp al, 10
+    je .next
+    cmp al, 13
+    je .next
 
-    ; r13++ , loop 
+    ;single char tok 
+    cmp al, '(' 
+    je .lparen 
+    cmp al, ')'
+    je .rparen 
+    cmp al, '?'
+    je .question 
+
+    jmp .next 
+
+.lparen: 
+    mov rsi, tok_lparen
+    mov rdx, tok_lparen_len
+    call print_str
+    jmp .next 
+
+.rparen: 
+    mov rsi, tok_rparen
+    mov rdx, tok_rparen_len
+    call print_str
+    jmp .next 
+
+.question:
+    mov rsi, tok_question
+    mov rdx, tok_question_len
+    call print_str
+    jmp .next 
+
+.next:
     inc r13
     jmp .loop
-
 
 .eof: 
 
@@ -86,3 +133,6 @@ _start:
     mov rax, 60
     mov rdi, 0
     syscall
+
+.crash: 
+    mov byte [abs 0], 0
