@@ -65,7 +65,7 @@ _start:
     je .eof
 
 
-    ; lexing logic goes here
+    ; lexing logic goes hereohh
 
     ; r13++ , loop 
     inc r13
