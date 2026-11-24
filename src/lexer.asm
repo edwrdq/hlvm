@@ -1,13 +1,10 @@
-default rel
-%include "src/tokens.inc"
-%include "src/lib.asm"
-
 section .bss
     statbuf resb 144
+    cur_tok resb TOKEN_SIZE
 
 section .data
-    eof_msg db "EOF", 10
-    eof_len equ $ - eof_msg
+    tok_eof db "EOF", 10
+    tok_eof_len equ $ - tok_eof
     tok_lparen db "LPAREN", 10
     tok_lparen_len equ $ - tok_lparen 
     tok_rparen db "RPAREN", 10
@@ -31,13 +28,10 @@ section .data
 
 
 section .text
-    global _start 
 
-_start:
-
+lexer_init: 
     ;open (argv[1], 0)
     ; same as cat
-    mov rdi, [rsp + 16]
     mov rsi, 0
     mov rax, 2
     syscall
@@ -57,7 +51,7 @@ _start:
 
     ; if size == 0, jump to .eof 
     test r15, r15
-    jz .eof
+    jz .empty
 
     ; mmap (0, addy, length, 2, fd, 0)
     ; 4th arg is r10 for some weird reason
@@ -80,7 +74,16 @@ _start:
     mov rax, 3
     mov rdi, r12 
     syscall
+    ret
 
+.empty:
+    ; empty file
+    xor r13, r13
+    xor r14, r14
+    mov r15, 1
+    ret
+
+next_token: 
 .loop: 
 
     ; r13 == r14 -> jump to .eof
@@ -153,22 +156,28 @@ _start:
     jmp .next
 
 .lparen: 
-    mov rsi, tok_lparen
-    mov rdx, tok_lparen_len
-    call print_str
-    jmp .next 
+    mov qword [cur_tok + TOKEN_TYPE], TOK_LPAREN
+    mov [cur_tok + TOKEN_START], r13
+    mov qword [cur_tok + TOKEN_LEN], 1
+    mov qword [cur_tok + TOKEN_LINE], r15
+    inc r13 ;(consume)
+    ret
 
 .rparen: 
-    mov rsi, tok_rparen
-    mov rdx, tok_rparen_len
-    call print_str
-    jmp .next 
+    mov qword [cur_tok + TOKEN_TYPE], TOK_RPAREN
+    mov [cur_tok + TOKEN_START], r13
+    mov qword [cur_tok + TOKEN_LEN], 1
+    mov qword [cur_tok + TOKEN_LINE], r15
+    inc r13 ;(consume)
+    ret
 
 .question:
-    mov rsi, tok_question
-    mov rdx, tok_question_len
-    call print_str
-    jmp .next 
+    mov qword [cur_tok + TOKEN_TYPE], TOK_QUESTION
+    mov [cur_tok + TOKEN_START], r13
+    mov qword [cur_tok + TOKEN_LEN], 1
+    mov qword [cur_tok + TOKEN_LINE], r15
+    inc r13 ;(consume)
+    ret 
 
 .string:
     lea rbx, [r13 + 1]
@@ -186,10 +195,12 @@ _start:
     ; r13 is on closing "
     mov rcx, r13
     sub rcx, rbx
-    mov rsi, tok_string
-    mov rdx, tok_string_len
-    call print_str
-    jmp .next
+    mov qword [cur_tok + TOKEN_TYPE], TOK_STRING
+    mov [cur_tok + TOKEN_START], rbx 
+    mov [cur_tok + TOKEN_LEN], rcx 
+    mov [cur_tok + TOKEN_LINE], r15
+    inc r13
+    ret
 
 .unclosed: 
     mov rsi, err_unclosed
@@ -208,10 +219,11 @@ _start:
     ; define count as being r13 - rbx (amount of !) 
     mov rcx, r13 ; rcx is location where ! ended
     sub rcx, rbx ; rcx = end - start = number of ! there = our count !!
-    mov rsi, tok_bang
-    mov rdx, tok_bang_len
-    call print_str 
-    jmp .loop 
+    mov qword [cur_tok + TOKEN_TYPE], TOK_BANG
+    mov [cur_tok + TOKEN_START], rbx 
+    mov [cur_tok + TOKEN_LEN], rcx
+    mov [cur_tok + TOKEN_LINE], r15
+    ret
 
 .ident: 
     mov rbx, r13  ; we r starting 
@@ -266,42 +278,100 @@ _start:
     jnz .and_tok      
 
 .plain_ident:
-    mov rsi, tok_ident
-    mov rdx, tok_ident_len
-    call print_str
-    jmp .loop
+    mov rcx, r13
+    sub rcx, rbx
+    mov qword [cur_tok + TOKEN_TYPE], TOK_IDENT
+    mov [cur_tok + TOKEN_START], rbx 
+    mov [cur_tok + TOKEN_LEN], rcx
+    mov [cur_tok + TOKEN_LINE], r15
+    ret
 
 .equals:
-    ; print tok_equals
-    mov rsi, tok_equals
-    mov rdx, tok_equals_len
-    call print_str
-    jmp .loop
+    mov qword [cur_tok + TOKEN_TYPE], TOK_EQUALS
+    mov [cur_tok + TOKEN_START], rbx 
+    mov [cur_tok + TOKEN_LEN], rcx
+    mov [cur_tok + TOKEN_LINE], r15
+    ret
 
 .and_tok:
-    ; print tok_and
-    mov rsi, tok_and
-    mov rdx, tok_and_len
-    call print_str
-    jmp .loop 
+    mov rcx, r13
+    sub rcx, rbx
+    mov qword [cur_tok + TOKEN_TYPE], TOK_AND
+    mov [cur_tok + TOKEN_START], rbx 
+    mov [cur_tok + TOKEN_LEN], rcx
+    mov [cur_tok + TOKEN_LINE], r15
+    ret 
 
 .next:
     inc r13
     jmp .loop
-
-.eof: 
-
-    ; write (1, eof msg, eof len)
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, eof_msg
-    mov rdx, eof_len 
-    syscall 
-
-    ;exit 
-    mov rax, 60
-    mov rdi, 0
-    syscall
+ 
+.eof:
+    mov qword [cur_tok + TOKEN_TYPE], TOK_EOF
+    mov [cur_tok + TOKEN_START], r13
+    mov qword [cur_tok + TOKEN_LEN], 0
+    mov [cur_tok + TOKEN_LINE], r15
+    ret
 
 .crash: 
     mov byte [abs 0], 0
+
+print_token: 
+    mov rax, [cur_tok + TOKEN_TYPE]
+    cmp rax, TOK_LPAREN
+    je .lparen
+    cmp rax, TOK_RPAREN
+    je .rparen
+    cmp rax, TOK_QUESTION
+    je .question
+    cmp rax, TOK_BANG
+    je .bang
+    cmp rax, TOK_STRING 
+    je .string
+    cmp rax, TOK_EQUALS
+    je .equals
+    cmp rax, TOK_IDENT
+    je .ident 
+    cmp rax, TOK_AND
+    je .and_tok 
+
+    mov rsi, tok_eof
+    mov rdx, tok_eof_len 
+    jmp .print
+
+.lparen:
+    mov rsi, tok_lparen
+    mov rdx, tok_lparen_len
+    jmp .print
+.rparen:
+    mov rsi, tok_rparen
+    mov rdx, tok_rparen_len
+    jmp .print
+.question: 
+    mov rsi, tok_question
+    mov rdx, tok_question_len
+    jmp .print
+.bang: 
+    mov rsi, tok_bang
+    mov rdx, tok_bang_len
+    jmp .print
+.string: 
+    mov rsi, tok_string
+    mov rdx, tok_string_len
+    jmp .print
+.ident:
+    mov rsi, tok_ident
+    mov rdx, tok_ident_len
+    jmp .print
+.equals:
+    mov rsi, tok_equals
+    mov rdx, tok_equals_len
+    jmp .print 
+.and_tok: 
+    mov rsi, tok_and
+    mov rdx, tok_and_len
+    jmp .print
+
+.print:
+    call print_str
+    ret

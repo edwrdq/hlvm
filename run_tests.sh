@@ -3,7 +3,7 @@ pass=0; fail=0
 for f in tests/*.gom; do
     exp="${f%.gom}.expected"
     [ -f "$exp" ] || continue
-    if diff -q <(./build/lexer "$f" 2>&1) "$exp" > /dev/null; then
+    if diff -q <(./build/hlvm "$f" 2>&1) "$exp" > /dev/null; then
         pass=$((pass+1))
     else
         echo "FAIL: $f"

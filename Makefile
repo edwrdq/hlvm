@@ -16,15 +16,15 @@ cat: build src/cat.asm
 	$(AS) $(ASFLAGS) src/cat.asm -o build/cat.o
 	$(LD) build/cat.o -o build/cat
 
-lexer: build src/cat.asm
-	$(AS) $(ASFLAGS) src/lexer.asm -o build/lexer.o
-	$(LD) build/lexer.o -o build/lexer
-
 test_lib: build src/test_lib.asm
 	$(AS) $(ASFLAGS) src/test_lib.asm -o build/test_lib.o
 	$(LD) build/test_lib.o -o build/test_lib
 
+hlvm: build src/main.asm src/lexer.asm src/lib.asm src/tokens.inc
+	$(AS) $(ASFLAGS) src/main.asm -o build/main.o
+	$(LD) build/main.o -o build/hlvm
+
 clean:
 	rm -rf build
 
-.PHONY: hi clean
+.PHONY: hi cat test_lib hlvm clean
